@@ -796,28 +796,16 @@ INT fwupgrade_hal_get_data_from_Xconf() {
     pclose(fp);
     mac[strcspn(mac, "\n")] = 0;  // Remove trailing newline
 
-    // Step 2: curl the request
-    /*char cmd[512];
-    snprintf(cmd, sizeof(cmd),
-        "curl -s '%s%s' -o %s",
-        CLOUD_BASE_URL, mac, TMP_JSON_FILE);
-
-    if (system(cmd) != 0) {
-        fprintf(stderr, "Curl command failed\n");
-        return -1;
-    }*/
     char cloud_url[512];
     if (get_cloud_url(cloud_url, sizeof(cloud_url)) != 0) {
         return -1;    // Failed to read CLOUDURL
-}
-
-// Build full URL: CLOUDURL already ends with "?eStbMac="
+   }
    char full_url[512];
    snprintf(full_url, sizeof(full_url), "%s%s", cloud_url, mac);
 
    char cmd[512];
    snprintf(cmd, sizeof(cmd),
-          "curl -s '%s' -o %s",
+          "curl -s %s -o %s",
            full_url, TMP_JSON_FILE);
        if (system(cmd) != 0) {
           fprintf(stderr, "Curl command failed\n");
@@ -900,6 +888,30 @@ INT fwupgrade_hal_get_data_from_Xconf() {
     cJSON_Delete(json);
     return RETURN_OK;
 }
+
+int get_cloud_url(char *url, int url_len)
+{
+    FILE *fp = fopen("/etc/include.properties", "r");
+    if (!fp) {
+        perror("Failed to open include.properties");
+        return -1;
+    }
+    char line[512];
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "CLOUDURL=", 9) == 0) {
+            char *value = line + 9;  // skip "CLOUDURL="
+            value[strcspn(value, "\r\n")] = '\0';
+            strncpy(url, value, url_len - 1);
+            url[url_len - 1] = '\0';
+            fclose(fp);
+            return 0;
+        }
+    }
+
+    fclose(fp);
+    return -1;
+}
+
 int detect_root_partition(void)
 {
 	FILE *fp;
