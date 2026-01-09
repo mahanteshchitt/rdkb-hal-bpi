@@ -600,7 +600,6 @@ INT fwupgrade_hal_download_reboot_now()
         int bs_512 = 512;
         int bs_1M = 1024 * 1024;
         char decompress_cmd[300];
-
         fprintf(stderr, "Entering %s\n", __func__);
         snprintf(wic_path, sizeof(wic_path), "/mnt/bootpart/%s", g_downloaded_file_name);
         // Step 1: Check if file exists
@@ -641,7 +640,6 @@ INT fwupgrade_hal_download_reboot_now()
                 fprintf(stderr, "Currently booted from ROOT-B, switching to ROOT-A\n");
                 strcpy(target_boot, "/dev/mmcblk0p3");
                 strcpy(target_root, "/dev/mmcblk0p4");
-		//umount("/dev/mmcblk0p4");
 
         } else {
                 fprintf(stderr, "Unsupported root partition_1: %s\n", g_root_partition);
@@ -730,7 +728,6 @@ INT fwupgrade_hal_download_reboot_now()
                 	umount("/opt/root_new");
                 	rmdir("/opt/root_new");
         	} else {
-			umount("/dev/mmcblk0p4");
                 	fprintf(stderr, "No fstab update required for mmcblk0p4 boot.\n");
         	}
 
@@ -748,8 +745,10 @@ INT fwupgrade_hal_download_reboot_now()
         write_image_to_device("/mnt/bootpart/fip.img", "/dev/mmcblk0p6", bs_512);
 	sync();
 	fprintf(stderr,"value of the xconf flag is %d\n", g_xconf_flag);
-	umount("MOUNT_POINT");
+	cleanup_mount(MOUNT_POINT_1);
+	umount(MOUNT_POINT_1);
 	sync();
+	sleep(3);
 	fprintf(stderr,"All done. Rebooting...\n");
         system("/sbin/reboot");
 
@@ -1067,7 +1066,6 @@ int check_image_version(const char *g_firmwareVersion,
                 if (strcmp(passiveVersion, extractedVersion) == 0) {
                         fprintf(stderr,"Passive Partition already has required version (%s). Switching banks...\n",
                                 extractedVersion);
-
                         umount(MOUNT_POINT_2);
                         fwupgrade_hal_recover_image();
                         return -1;
@@ -1077,12 +1075,24 @@ int check_image_version(const char *g_firmwareVersion,
         } else {
                 fprintf(stderr, "Mount of passive partition failed\n");
         }
-
         umount(MOUNT_POINT_2);
         fprintf(stderr,"Neither active nor passive have the required version. Proceeding with upgrade...\n");
         return RETURN_OK;
 
 
+}
+
+int cleanup_mount(const char *mnt)
+{
+    char cmd[256];
+
+    snprintf(cmd, sizeof(cmd), "rm -rf %s/*", mnt);
+
+    if (system(cmd) != 0) {
+        fprintf(stderr, "Failed to cleanup %s\n", mnt);
+        return -1;
+    }
+    return 0;
 }
 
 int get_image_version(const char *filePath, char *outVersion, size_t outSize)
